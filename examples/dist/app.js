@@ -1238,7 +1238,8 @@ function is(x, y) {
   if (x === y) {
     // Steps 1-5, 7-10
     // Steps 6.b-6.e: +0 != -0
-    return x !== 0 || 1 / x === 1 / y;
+    // Added the nonzero y check to make Flow happy, but it is redundant
+    return x !== 0 || y !== 0 || 1 / x === 1 / y;
   } else {
     // Step 6.a: NaN == NaN
     return x !== x && y !== y;
@@ -1323,7 +1324,7 @@ module.exports = function() {
 require('whatwg-fetch');
 module.exports = self.fetch.bind(self);
 
-},{"whatwg-fetch":80}],23:[function(require,module,exports){
+},{"whatwg-fetch":81}],23:[function(require,module,exports){
 (function(){
   var crypt = require('crypt'),
       utf8 = require('charenc').utf8,
@@ -1474,8 +1475,8 @@ module.exports = self.fetch.bind(self);
   md5._digestsize = 16;
 
   module.exports = function (message, options) {
-    if(typeof message == 'undefined')
-      return;
+    if (message === undefined || message === null)
+      throw new Error('Illegal argument ' + message);
 
     var digestbytes = crypt.wordsToBytes(md5(message, options));
     return options && options.asBytes ? digestbytes :
@@ -1618,25 +1619,40 @@ var process = module.exports = {};
 var cachedSetTimeout;
 var cachedClearTimeout;
 
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
 (function () {
     try {
-        cachedSetTimeout = setTimeout;
-    } catch (e) {
-        cachedSetTimeout = function () {
-            throw new Error('setTimeout is not defined');
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
         }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
     }
     try {
-        cachedClearTimeout = clearTimeout;
-    } catch (e) {
-        cachedClearTimeout = function () {
-            throw new Error('clearTimeout is not defined');
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
         }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
     }
 } ())
 function runTimeout(fun) {
     if (cachedSetTimeout === setTimeout) {
         //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
         return setTimeout(fun, 0);
     }
     try {
@@ -1657,6 +1673,11 @@ function runTimeout(fun) {
 function runClearTimeout(marker) {
     if (cachedClearTimeout === clearTimeout) {
         //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
         return clearTimeout(marker);
     }
     try {
@@ -1868,7 +1889,7 @@ exports.stringify = function (obj, opts) {
 	}).join('&') : '';
 };
 
-},{"object-assign":24,"strict-uri-encode":79}],28:[function(require,module,exports){
+},{"object-assign":24,"strict-uri-encode":80}],28:[function(require,module,exports){
 (function (global){
 var now = require('performance-now')
   , root = typeof window === 'undefined' ? global : window
@@ -1946,7 +1967,7 @@ module.exports.polyfill = function() {
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"performance-now":25}],29:[function(require,module,exports){
 module.exports = require('react/lib/shallowCompare');
-},{"react/lib/shallowCompare":78}],30:[function(require,module,exports){
+},{"react/lib/shallowCompare":79}],30:[function(require,module,exports){
 'use strict';
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
@@ -1991,12 +2012,7 @@ var Gravatar = function (_React$Component) {
   _createClass(Gravatar, [{
     key: 'render',
     value: function render() {
-      var base = void 0;
-      if (this.props.https) {
-        base = 'https://secure.gravatar.com/avatar/';
-      } else {
-        base = 'http://www.gravatar.com/avatar/';
-      }
+      var base = this.props.protocol + 'www.gravatar.com/avatar/';
 
       var query = _queryString2.default.stringify({
         s: this.props.size,
@@ -2010,11 +2026,14 @@ var Gravatar = function (_React$Component) {
         d: this.props.default
       });
 
+      // Gravatar service currently trims and lowercases all registered emails
+      var formattedEmail = ('' + this.props.email).trim().toLowerCase();
+
       var hash = void 0;
       if (this.props.md5) {
         hash = this.props.md5;
-      } else if (this.props.email) {
-        hash = (0, _md2.default)(this.props.email);
+      } else if (typeof this.props.email === 'string') {
+        hash = (0, _md2.default)(formattedEmail);
       } else {
         console.warn('Gravatar image can not be fetched. Either the "email" or "md5" prop must be specified.');
         return _react2.default.createElement('script', null);
@@ -2040,9 +2059,9 @@ var Gravatar = function (_React$Component) {
 
       var rest = _objectWithoutProperties(this.props, []);
 
-      delete rest.https;
       delete rest.md5;
       delete rest.email;
+      delete rest.protocol;
       delete rest.rating;
       delete rest.size;
       delete rest.style;
@@ -2050,7 +2069,7 @@ var Gravatar = function (_React$Component) {
       delete rest.default;
       if (!modernBrowser && (0, _isRetina2.default)()) {
         return _react2.default.createElement('img', _extends({
-          alt: 'Gravatar for ' + this.props.email,
+          alt: 'Gravatar for ' + formattedEmail,
           style: this.props.style,
           src: retinaSrc,
           height: this.props.size,
@@ -2060,7 +2079,7 @@ var Gravatar = function (_React$Component) {
         }));
       }
       return _react2.default.createElement('img', _extends({
-        alt: 'Gravatar for ' + this.props.email,
+        alt: 'Gravatar for ' + formattedEmail,
         style: this.props.style,
         src: src,
         srcSet: retinaSrc + ' 2x',
@@ -2081,16 +2100,16 @@ Gravatar.propTypes = {
   md5: _react2.default.PropTypes.string,
   size: _react2.default.PropTypes.number,
   rating: _react2.default.PropTypes.string,
-  https: _react2.default.PropTypes.bool,
   default: _react2.default.PropTypes.string,
   className: _react2.default.PropTypes.string,
+  protocol: _react2.default.PropTypes.string,
   style: _react2.default.PropTypes.object
 };
 Gravatar.defaultProps = {
   size: 50,
   rating: 'g',
-  https: false,
-  default: 'retro'
+  default: 'retro',
+  protocol: '//'
 };
 
 
@@ -2152,10 +2171,7 @@ var VirtualizedSelect = function (_Component) {
   }, {
     key: 'render',
     value: function render() {
-      var async = this.props.async;
-
-
-      var SelectComponent = async ? _reactSelect2.default.Async : _reactSelect2.default;
+      var SelectComponent = this._getSelectComponent();
 
       return _react2.default.createElement(SelectComponent, _extends({}, this.props, {
         menuRenderer: this._renderMenu,
@@ -2256,6 +2272,22 @@ var VirtualizedSelect = function (_Component) {
       return optionHeight instanceof Function ? optionHeight({ option: option }) : optionHeight;
     }
   }, {
+    key: '_getSelectComponent',
+    value: function _getSelectComponent() {
+      var _props = this.props;
+      var async = _props.async;
+      var selectComponent = _props.selectComponent;
+
+
+      if (selectComponent) {
+        return selectComponent;
+      } else if (async) {
+        return _reactSelect2.default.Async;
+      } else {
+        return _reactSelect2.default;
+      }
+    }
+  }, {
     key: '_optionRenderer',
     value: function _optionRenderer(_ref8) {
       var focusedOption = _ref8.focusedOption;
@@ -2303,7 +2335,8 @@ VirtualizedSelect.propTypes = {
   async: _react.PropTypes.bool,
   maxHeight: _react.PropTypes.number.isRequired,
   optionHeight: _react.PropTypes.oneOfType([_react.PropTypes.number, _react.PropTypes.func]).isRequired,
-  optionRenderer: _react.PropTypes.func
+  optionRenderer: _react.PropTypes.func,
+  selectComponent: _react.PropTypes.func
 };
 VirtualizedSelect.defaultProps = {
   async: false,
@@ -2311,7 +2344,7 @@ VirtualizedSelect.defaultProps = {
   optionHeight: 35
 };
 exports.default = VirtualizedSelect;
-},{"react":undefined,"react-select":undefined,"react-virtualized":74}],32:[function(require,module,exports){
+},{"react":undefined,"react-select":undefined,"react-virtualized":75}],32:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -2538,6 +2571,11 @@ var AutoSizer = function (_Component) {
   _createClass(AutoSizer, [{
     key: 'componentDidMount',
     value: function componentDidMount() {
+      // Delay access of parentNode until mount.
+      // This handles edge-cases where the component has already been unmounted before its ref has been set,
+      // As well as libraries like react-lite which have a slightly different lifecycle.
+      this._parentNode = this._autoSizer.parentNode;
+
       // Defer requiring resize handler in order to support server-side rendering.
       // See issue #41
       this._detectElementResize = require('../vendor/detectElementResize');
@@ -2627,8 +2665,7 @@ var AutoSizer = function (_Component) {
   }, {
     key: '_setRef',
     value: function _setRef(autoSizer) {
-      // In case the component has been unmounted
-      this._parentNode = autoSizer && autoSizer.parentNode;
+      this._autoSizer = autoSizer;
     }
   }]);
 
@@ -2656,7 +2693,7 @@ AutoSizer.defaultProps = {
   onResize: function onResize() {}
 };
 exports.default = AutoSizer;
-},{"../vendor/detectElementResize":77,"react":undefined,"react-addons-shallow-compare":29}],37:[function(require,module,exports){
+},{"../vendor/detectElementResize":78,"react":undefined,"react-addons-shallow-compare":29}],37:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3427,7 +3464,7 @@ function defaultCellGroupRenderer(_ref5) {
     return !!renderedCell;
   });
 }
-},{"../utils/getUpdatedOffsetForIndex":76,"./CollectionView":42,"./utils/calculateSizeAndPositionData":46,"react":undefined,"react-addons-shallow-compare":29}],42:[function(require,module,exports){
+},{"../utils/getUpdatedOffsetForIndex":77,"./CollectionView":42,"./utils/calculateSizeAndPositionData":46,"react":undefined,"react-addons-shallow-compare":29}],42:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -3681,6 +3718,7 @@ var CollectionView = function (_Component) {
       var _this2 = this;
 
       var _props3 = this.props;
+      var autoHeight = _props3.autoHeight;
       var cellCount = _props3.cellCount;
       var cellLayoutManager = _props3.cellLayoutManager;
       var className = _props3.className;
@@ -3716,7 +3754,7 @@ var CollectionView = function (_Component) {
       }) : [];
 
       var collectionStyle = {
-        height: height,
+        height: autoHeight ? 'auto' : height,
         width: width
       };
 
@@ -3753,7 +3791,7 @@ var CollectionView = function (_Component) {
               height: totalHeight,
               maxHeight: totalHeight,
               maxWidth: totalWidth,
-              pointerEvents: isScrolling ? 'none' : 'auto',
+              pointerEvents: isScrolling ? 'none' : '',
               width: totalWidth
             }
           },
@@ -3996,6 +4034,12 @@ CollectionView.propTypes = {
   'aria-label': _react.PropTypes.string,
 
   /**
+   * Removes fixed height from the scrollingContainer so that the total height
+   * of rows can stretch the window. Intended for use with WindowScroller
+   */
+  autoHeight: _react.PropTypes.bool,
+
+  /**
    * Number of cells in collection.
    */
   cellCount: _react.PropTypes.number.isRequired,
@@ -4096,7 +4140,7 @@ CollectionView.defaultProps = {
   verticalOverscanSize: 0
 };
 exports.default = CollectionView;
-},{"../utils/createCallbackMemoizer":75,"classnames":undefined,"dom-helpers/util/scrollbarSize":18,"raf":28,"react":undefined,"react-addons-shallow-compare":29}],43:[function(require,module,exports){
+},{"../utils/createCallbackMemoizer":76,"classnames":undefined,"dom-helpers/util/scrollbarSize":18,"raf":28,"react":undefined,"react-addons-shallow-compare":29}],43:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -5610,6 +5654,7 @@ exports.SortIndicator = _SortIndicator3.default;
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+exports.DEFAULT_SCROLLING_RESET_TIME_INTERVAL = undefined;
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
@@ -5671,7 +5716,7 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
  * Specifies the number of miliseconds during which to disable pointer events while a scroll is in progress.
  * This improves performance and makes scrolling smoother.
  */
-var IS_SCROLLING_TIMEOUT = 150;
+var DEFAULT_SCROLLING_RESET_TIME_INTERVAL = exports.DEFAULT_SCROLLING_RESET_TIME_INTERVAL = 150;
 
 /**
  * Controls whether the Grid updates the DOM element's scrollLeft/scrollTop based on the current state or just observes it.
@@ -5697,6 +5742,8 @@ var Grid = function (_Component) {
 
     _this.state = {
       isScrolling: false,
+      scrollDirectionHorizontal: _getOverscanIndices.SCROLL_DIRECTION_FIXED,
+      scrollDirectionVertical: _getOverscanIndices.SCROLL_DIRECTION_FIXED,
       scrollLeft: 0,
       scrollTop: 0
     };
@@ -5773,6 +5820,11 @@ var Grid = function (_Component) {
 
       this._columnSizeAndPositionManager.resetCell(columnIndex);
       this._rowSizeAndPositionManager.resetCell(rowIndex);
+
+      // Clear cell cache in case we are scrolling;
+      // Invalid row heights likely mean invalid cached content as well.
+      this._cellCache = {};
+
       this.forceUpdate();
     }
   }, {
@@ -6061,7 +6113,7 @@ var Grid = function (_Component) {
               height: totalRowsHeight,
               maxWidth: totalColumnsWidth,
               maxHeight: totalRowsHeight,
-              pointerEvents: isScrolling ? 'none' : 'auto'
+              pointerEvents: isScrolling ? 'none' : ''
             }
           },
           childrenToDisplay
@@ -6093,6 +6145,8 @@ var Grid = function (_Component) {
       var rowCount = props.rowCount;
       var width = props.width;
       var isScrolling = state.isScrolling;
+      var scrollDirectionHorizontal = state.scrollDirectionHorizontal;
+      var scrollDirectionVertical = state.scrollDirectionVertical;
       var scrollLeft = state.scrollLeft;
       var scrollTop = state.scrollTop;
 
@@ -6128,6 +6182,7 @@ var Grid = function (_Component) {
         var overscanColumnIndices = (0, _getOverscanIndices2.default)({
           cellCount: columnCount,
           overscanCellsCount: overscanColumnCount,
+          scrollDirection: scrollDirectionHorizontal,
           startIndex: this._renderedColumnStartIndex,
           stopIndex: this._renderedColumnStopIndex
         });
@@ -6135,6 +6190,7 @@ var Grid = function (_Component) {
         var overscanRowIndices = (0, _getOverscanIndices2.default)({
           cellCount: rowCount,
           overscanCellsCount: overscanRowCount,
+          scrollDirection: scrollDirectionVertical,
           startIndex: this._renderedRowStartIndex,
           stopIndex: this._renderedRowStopIndex
         });
@@ -6174,11 +6230,14 @@ var Grid = function (_Component) {
   }, {
     key: '_enablePointerEventsAfterDelay',
     value: function _enablePointerEventsAfterDelay() {
+      var scrollingResetTimeInterval = this.props.scrollingResetTimeInterval;
+
+
       if (this._disablePointerEventsTimeoutId) {
         clearTimeout(this._disablePointerEventsTimeoutId);
       }
 
-      this._disablePointerEventsTimeoutId = setTimeout(this._enablePointerEventsAfterDelayCallback, IS_SCROLLING_TIMEOUT);
+      this._disablePointerEventsTimeoutId = setTimeout(this._enablePointerEventsAfterDelayCallback, scrollingResetTimeInterval);
     }
   }, {
     key: '_enablePointerEventsAfterDelayCallback',
@@ -6189,7 +6248,9 @@ var Grid = function (_Component) {
       this._cellCache = {};
 
       this.setState({
-        isScrolling: false
+        isScrolling: false,
+        scrollDirectionHorizontal: _getOverscanIndices.SCROLL_DIRECTION_FIXED,
+        scrollDirectionVertical: _getOverscanIndices.SCROLL_DIRECTION_FIXED
       });
     }
   }, {
@@ -6423,6 +6484,10 @@ var Grid = function (_Component) {
         // For more information see https://github.com/bvaughn/react-virtualized/pull/124
         var scrollPositionChangeReason = event.cancelable ? SCROLL_POSITION_CHANGE_REASONS.OBSERVED : SCROLL_POSITION_CHANGE_REASONS.REQUESTED;
 
+        // Track scrolling direction so we can more efficiently overscan rows to reduce empty space around the edges while scrolling.
+        var scrollDirectionVertical = scrollTop > this.state.scrollTop ? _getOverscanIndices.SCROLL_DIRECTION_FORWARD : _getOverscanIndices.SCROLL_DIRECTION_BACKWARD;
+        var scrollDirectionHorizontal = scrollLeft > this.state.scrollLeft ? _getOverscanIndices.SCROLL_DIRECTION_FORWARD : _getOverscanIndices.SCROLL_DIRECTION_BACKWARD;
+
         if (!this.state.isScrolling) {
           this.setState({
             isScrolling: true
@@ -6431,6 +6496,8 @@ var Grid = function (_Component) {
 
         this._setNextState({
           isScrolling: true,
+          scrollDirectionHorizontal: scrollDirectionHorizontal,
+          scrollDirectionVertical: scrollDirectionVertical,
           scrollLeft: scrollLeft,
           scrollPositionChangeReason: scrollPositionChangeReason,
           scrollTop: scrollTop
@@ -6563,6 +6630,9 @@ Grid.propTypes = {
    */
   rowCount: _react.PropTypes.number.isRequired,
 
+  /** Wait this amount of time after the last scroll event before resetting Grid `pointer-events`. */
+  scrollingResetTimeInterval: _react.PropTypes.number,
+
   /** Horizontal offset. */
   scrollLeft: _react.PropTypes.number,
 
@@ -6614,12 +6684,13 @@ Grid.defaultProps = {
   },
   overscanColumnCount: 0,
   overscanRowCount: 10,
+  scrollingResetTimeInterval: DEFAULT_SCROLLING_RESET_TIME_INTERVAL,
   scrollToAlignment: 'auto',
   style: {},
   tabIndex: 0
 };
 exports.default = Grid;
-},{"../utils/createCallbackMemoizer":75,"./defaultCellRangeRenderer":59,"./utils/ScalingCellSizeAndPositionManager":62,"./utils/calculateSizeAndPositionDataAndUpdateScrollOffset":63,"./utils/getOverscanIndices":64,"./utils/updateScrollIndexHelper":65,"classnames":undefined,"dom-helpers/util/scrollbarSize":18,"raf":28,"react":undefined,"react-addons-shallow-compare":29}],59:[function(require,module,exports){
+},{"../utils/createCallbackMemoizer":76,"./defaultCellRangeRenderer":59,"./utils/ScalingCellSizeAndPositionManager":62,"./utils/calculateSizeAndPositionDataAndUpdateScrollOffset":63,"./utils/getOverscanIndices":64,"./utils/updateScrollIndexHelper":65,"classnames":undefined,"dom-helpers/util/scrollbarSize":18,"raf":28,"react":undefined,"react-addons-shallow-compare":29}],59:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7308,11 +7379,16 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 exports.default = getOverscanIndices;
+var SCROLL_DIRECTION_BACKWARD = exports.SCROLL_DIRECTION_BACKWARD = -1;
+var SCROLL_DIRECTION_FIXED = exports.SCROLL_DIRECTION_FIXED = 0;
+var SCROLL_DIRECTION_FORWARD = exports.SCROLL_DIRECTION_FORWARD = 1;
+
 /**
  * Calculates the number of cells to overscan before and after a specified range.
  * This function ensures that overscanning doesn't exceed the available cells.
  *
  * @param cellCount Number of rows or columns in the current axis
+ * @param scrollDirection One of SCROLL_DIRECTION_BACKWARD
  * @param overscanCellsCount Maximum number of cells to over-render in either direction
  * @param startIndex Begin of range of visible cells
  * @param stopIndex End of range of visible cells
@@ -7320,12 +7396,27 @@ exports.default = getOverscanIndices;
 function getOverscanIndices(_ref) {
   var cellCount = _ref.cellCount;
   var overscanCellsCount = _ref.overscanCellsCount;
+  var scrollDirection = _ref.scrollDirection;
   var startIndex = _ref.startIndex;
   var stopIndex = _ref.stopIndex;
 
+  var overscanStartIndex = void 0;
+  var overscanStopIndex = void 0;
+
+  if (scrollDirection === SCROLL_DIRECTION_FORWARD) {
+    overscanStartIndex = startIndex;
+    overscanStopIndex = stopIndex + overscanCellsCount * 2;
+  } else if (scrollDirection === SCROLL_DIRECTION_BACKWARD) {
+    overscanStartIndex = startIndex - overscanCellsCount * 2;
+    overscanStopIndex = stopIndex;
+  } else {
+    overscanStartIndex = startIndex - overscanCellsCount;
+    overscanStopIndex = stopIndex + overscanCellsCount;
+  }
+
   return {
-    overscanStartIndex: Math.max(0, startIndex - overscanCellsCount),
-    overscanStopIndex: Math.min(cellCount - 1, stopIndex + overscanCellsCount)
+    overscanStartIndex: Math.max(0, overscanStartIndex),
+    overscanStopIndex: Math.min(cellCount - 1, overscanStopIndex)
   };
 }
 },{}],65:[function(require,module,exports){
@@ -7376,16 +7467,11 @@ function updateScrollIndexHelper(_ref) {
     // If we don't have a selected item but list size or number of children have decreased,
     // Make sure we aren't scrolled too far past the current content.
   } else if (!hasScrollToIndex && cellCount > 0 && (size < previousSize || cellCount < previousCellsCount)) {
-    scrollToIndex = cellCount - 1;
-
-    var calculatedScrollOffset = cellSizeAndPositionManager.getUpdatedOffsetForIndex({
-      containerSize: size,
-      currentOffset: scrollOffset,
-      targetIndex: scrollToIndex
-    });
-
+    // We need to ensure that the current scroll offset is still within the collection's range.
+    // To do this, we don't need to measure everything; CellMeasurer would perform poorly.
+    // Just check to make sure we're still okay.
     // Only adjust the scroll position if we've scrolled below the last set of rows.
-    if (calculatedScrollOffset < scrollOffset) {
+    if (scrollOffset > cellSizeAndPositionManager.getTotalSize() - size) {
       updateScrollIndexCallback(cellCount - 1);
     }
   }
@@ -7677,7 +7763,7 @@ function scanForUnloadedRanges(_ref3) {
 function forceUpdateReactVirtualizedComponent(component) {
   typeof component.forceUpdateGrid === 'function' ? component.forceUpdateGrid() : component.forceUpdate();
 }
-},{"../utils/createCallbackMemoizer":75,"react":undefined,"react-addons-shallow-compare":29}],67:[function(require,module,exports){
+},{"../utils/createCallbackMemoizer":76,"react":undefined,"react-addons-shallow-compare":29}],67:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8126,7 +8212,6 @@ exports.VirtualScroll = _VirtualScroll3.default;
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.IS_SCROLLING_TIMEOUT = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
@@ -8146,6 +8231,8 @@ var _raf = require('raf');
 
 var _raf2 = _interopRequireDefault(_raf);
 
+var _onScroll = require('./utils/onScroll');
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -8153,12 +8240,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-/**
- * Specifies the number of miliseconds during which to disable pointer events while a scroll is in progress.
- * This improves performance and makes scrolling smoother.
- */
-var IS_SCROLLING_TIMEOUT = exports.IS_SCROLLING_TIMEOUT = 150;
 
 var WindowScroller = function (_Component) {
   _inherits(WindowScroller, _Component);
@@ -8198,20 +8279,15 @@ var WindowScroller = function (_Component) {
         });
       }
 
-      window.addEventListener('scroll', this._onScrollWindow, false);
+      (0, _onScroll.registerScrollListener)(this);
       window.addEventListener('resize', this._onResizeWindow, false);
     }
   }, {
     key: 'componentWillUnmount',
     value: function componentWillUnmount() {
-      window.removeEventListener('scroll', this._onScrollWindow, false);
+      (0, _onScroll.unregisterScrollListener)(this);
+
       window.removeEventListener('resize', this._onResizeWindow, false);
-
-      if (this._disablePointerEventsTimeoutId) {
-        clearTimeout(this._disablePointerEventsTimeoutId);
-
-        this._enablePointerEventsIfDisabled();
-      }
     }
 
     /**
@@ -8260,33 +8336,11 @@ var WindowScroller = function (_Component) {
       return (0, _reactAddonsShallowCompare2.default)(this, nextProps, nextState);
     }
   }, {
-    key: '_enablePointerEventsAfterDelay',
-    value: function _enablePointerEventsAfterDelay() {
-      if (this._disablePointerEventsTimeoutId) {
-        clearTimeout(this._disablePointerEventsTimeoutId);
-      }
-
-      this._disablePointerEventsTimeoutId = setTimeout(this._enablePointerEventsAfterDelayCallback, IS_SCROLLING_TIMEOUT);
-    }
-  }, {
     key: '_enablePointerEventsAfterDelayCallback',
     value: function _enablePointerEventsAfterDelayCallback() {
-      this._enablePointerEventsIfDisabled();
-
       this.setState({
         isScrolling: false
       });
-    }
-  }, {
-    key: '_enablePointerEventsIfDisabled',
-    value: function _enablePointerEventsIfDisabled() {
-      if (this._disablePointerEventsTimeoutId) {
-        this._disablePointerEventsTimeoutId = null;
-
-        document.body.style.pointerEvents = this._originalBodyPointerEvents;
-
-        this._originalBodyPointerEvents = null;
-      }
     }
   }, {
     key: '_onResizeWindow',
@@ -8310,14 +8364,6 @@ var WindowScroller = function (_Component) {
       var scrollY = 'scrollY' in window ? window.scrollY : document.documentElement.scrollTop;
 
       var scrollTop = Math.max(0, scrollY - this._positionFromTop);
-
-      if (this._originalBodyPointerEvents == null) {
-        this._originalBodyPointerEvents = document.body.style.pointerEvents;
-
-        document.body.style.pointerEvents = 'none';
-
-        this._enablePointerEventsAfterDelay();
-      }
 
       var state = {
         isScrolling: true,
@@ -8356,23 +8402,103 @@ WindowScroller.defaultProps = {
   onScroll: function onScroll() {}
 };
 exports.default = WindowScroller;
-},{"raf":28,"react":undefined,"react-addons-shallow-compare":29,"react-dom":undefined}],73:[function(require,module,exports){
+},{"./utils/onScroll":74,"raf":28,"react":undefined,"react-addons-shallow-compare":29,"react-dom":undefined}],73:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.WindowScroller = exports.default = undefined;
+exports.IS_SCROLLING_TIMEOUT = exports.WindowScroller = exports.default = undefined;
 
 var _WindowScroller2 = require('./WindowScroller');
 
 var _WindowScroller3 = _interopRequireDefault(_WindowScroller2);
 
+var _onScroll = require('./utils/onScroll');
+
+var _onScroll2 = _interopRequireDefault(_onScroll);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 exports.default = _WindowScroller3.default;
 exports.WindowScroller = _WindowScroller3.default;
-},{"./WindowScroller":72}],74:[function(require,module,exports){
+exports.IS_SCROLLING_TIMEOUT = _onScroll2.default;
+},{"./WindowScroller":72,"./utils/onScroll":74}],74:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.registerScrollListener = registerScrollListener;
+exports.unregisterScrollListener = unregisterScrollListener;
+var mountedInstances = [];
+var originalBodyPointerEvents = null;
+var disablePointerEventsTimeoutId = null;
+
+/**
+ * Specifies the number of miliseconds during which to disable pointer events while a scroll is in progress.
+ * This improves performance and makes scrolling smoother.
+ */
+var IS_SCROLLING_TIMEOUT = exports.IS_SCROLLING_TIMEOUT = 150;
+
+function enablePointerEventsIfDisabled() {
+  if (disablePointerEventsTimeoutId) {
+    disablePointerEventsTimeoutId = null;
+
+    document.body.style.pointerEvents = originalBodyPointerEvents;
+
+    originalBodyPointerEvents = null;
+  }
+}
+
+function enablePointerEventsAfterDelayCallback() {
+  enablePointerEventsIfDisabled();
+  mountedInstances.forEach(function (component) {
+    return component._enablePointerEventsAfterDelayCallback();
+  });
+}
+
+function enablePointerEventsAfterDelay() {
+  if (disablePointerEventsTimeoutId) {
+    clearTimeout(disablePointerEventsTimeoutId);
+  }
+
+  disablePointerEventsTimeoutId = setTimeout(enablePointerEventsAfterDelayCallback, IS_SCROLLING_TIMEOUT);
+}
+
+function onScrollWindow(event) {
+  if (originalBodyPointerEvents == null) {
+    originalBodyPointerEvents = document.body.style.pointerEvents;
+
+    document.body.style.pointerEvents = 'none';
+
+    enablePointerEventsAfterDelay();
+  }
+  mountedInstances.forEach(function (component) {
+    return component._onScrollWindow(event);
+  });
+}
+
+function registerScrollListener(component) {
+  if (!mountedInstances.length) {
+    window.addEventListener('scroll', onScrollWindow);
+  }
+  mountedInstances.push(component);
+}
+
+function unregisterScrollListener(component) {
+  mountedInstances = mountedInstances.filter(function (c) {
+    return c !== component;
+  });
+  if (!mountedInstances.length) {
+    window.removeEventListener('scroll', onScrollWindow);
+    if (disablePointerEventsTimeoutId) {
+      clearTimeout(disablePointerEventsTimeoutId);
+      enablePointerEventsIfDisabled();
+    }
+  }
+}
+},{}],75:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8537,7 +8663,7 @@ Object.defineProperty(exports, 'WindowScroller', {
     return _WindowScroller.WindowScroller;
   }
 });
-},{"./ArrowKeyStepper":35,"./AutoSizer":37,"./CellMeasurer":40,"./Collection":45,"./ColumnSizer":48,"./FlexTable":57,"./Grid":60,"./InfiniteLoader":67,"./ScrollSync":69,"./VirtualScroll":71,"./WindowScroller":73}],75:[function(require,module,exports){
+},{"./ArrowKeyStepper":35,"./AutoSizer":37,"./CellMeasurer":40,"./Collection":45,"./ColumnSizer":48,"./FlexTable":57,"./Grid":60,"./InfiniteLoader":67,"./ScrollSync":69,"./VirtualScroll":71,"./WindowScroller":73}],76:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8575,7 +8701,7 @@ function createCallbackMemoizer() {
     }
   };
 }
-},{}],76:[function(require,module,exports){
+},{}],77:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8616,7 +8742,7 @@ function getUpdatedOffsetForIndex(_ref) {
       return Math.max(minOffset, Math.min(maxOffset, currentOffset));
   }
 }
-},{}],77:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 'use strict';
 
 /**
@@ -8779,7 +8905,7 @@ module.exports = {
   addResizeListener: addResizeListener,
   removeResizeListener: removeResizeListener
 };
-},{}],78:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 /**
  * Copyright 2013-present, Facebook, Inc.
  * All rights reserved.
@@ -8788,8 +8914,7 @@ module.exports = {
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
  *
-* @providesModule shallowCompare
-*/
+ */
 
 'use strict';
 
@@ -8805,7 +8930,7 @@ function shallowCompare(instance, nextProps, nextState) {
 }
 
 module.exports = shallowCompare;
-},{"fbjs/lib/shallowEqual":19}],79:[function(require,module,exports){
+},{"fbjs/lib/shallowEqual":19}],80:[function(require,module,exports){
 'use strict';
 module.exports = function (str) {
 	return encodeURIComponent(str).replace(/[!'()*]/g, function (c) {
@@ -8813,7 +8938,7 @@ module.exports = function (str) {
 	});
 };
 
-},{}],80:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 (function(self) {
   'use strict';
 
@@ -8834,6 +8959,28 @@ module.exports = function (str) {
     })(),
     formData: 'FormData' in self,
     arrayBuffer: 'ArrayBuffer' in self
+  }
+
+  if (support.arrayBuffer) {
+    var viewClasses = [
+      '[object Int8Array]',
+      '[object Uint8Array]',
+      '[object Uint8ClampedArray]',
+      '[object Int16Array]',
+      '[object Uint16Array]',
+      '[object Int32Array]',
+      '[object Uint32Array]',
+      '[object Float32Array]',
+      '[object Float64Array]'
+    ]
+
+    var isDataView = function(obj) {
+      return obj && DataView.prototype.isPrototypeOf(obj)
+    }
+
+    var isArrayBufferView = ArrayBuffer.isView || function(obj) {
+      return obj && viewClasses.indexOf(Object.prototype.toString.call(obj)) > -1
+    }
   }
 
   function normalizeName(name) {
@@ -8889,12 +9036,8 @@ module.exports = function (str) {
   Headers.prototype.append = function(name, value) {
     name = normalizeName(name)
     value = normalizeValue(value)
-    var list = this.map[name]
-    if (!list) {
-      list = []
-      this.map[name] = list
-    }
-    list.push(value)
+    var oldValue = this.map[name]
+    this.map[name] = oldValue ? oldValue+','+value : value
   }
 
   Headers.prototype['delete'] = function(name) {
@@ -8902,12 +9045,8 @@ module.exports = function (str) {
   }
 
   Headers.prototype.get = function(name) {
-    var values = this.map[normalizeName(name)]
-    return values ? values[0] : null
-  }
-
-  Headers.prototype.getAll = function(name) {
-    return this.map[normalizeName(name)] || []
+    name = normalizeName(name)
+    return this.has(name) ? this.map[name] : null
   }
 
   Headers.prototype.has = function(name) {
@@ -8915,15 +9054,15 @@ module.exports = function (str) {
   }
 
   Headers.prototype.set = function(name, value) {
-    this.map[normalizeName(name)] = [normalizeValue(value)]
+    this.map[normalizeName(name)] = normalizeValue(value)
   }
 
   Headers.prototype.forEach = function(callback, thisArg) {
-    Object.getOwnPropertyNames(this.map).forEach(function(name) {
-      this.map[name].forEach(function(value) {
-        callback.call(thisArg, value, name, this)
-      }, this)
-    }, this)
+    for (var name in this.map) {
+      if (this.map.hasOwnProperty(name)) {
+        callback.call(thisArg, this.map[name], name, this)
+      }
+    }
   }
 
   Headers.prototype.keys = function() {
@@ -8968,14 +9107,36 @@ module.exports = function (str) {
 
   function readBlobAsArrayBuffer(blob) {
     var reader = new FileReader()
+    var promise = fileReaderReady(reader)
     reader.readAsArrayBuffer(blob)
-    return fileReaderReady(reader)
+    return promise
   }
 
   function readBlobAsText(blob) {
     var reader = new FileReader()
+    var promise = fileReaderReady(reader)
     reader.readAsText(blob)
-    return fileReaderReady(reader)
+    return promise
+  }
+
+  function readArrayBufferAsText(buf) {
+    var view = new Uint8Array(buf)
+    var chars = new Array(view.length)
+
+    for (var i = 0; i < view.length; i++) {
+      chars[i] = String.fromCharCode(view[i])
+    }
+    return chars.join('')
+  }
+
+  function bufferClone(buf) {
+    if (buf.slice) {
+      return buf.slice(0)
+    } else {
+      var view = new Uint8Array(buf.byteLength)
+      view.set(new Uint8Array(buf))
+      return view.buffer
+    }
   }
 
   function Body() {
@@ -8983,7 +9144,9 @@ module.exports = function (str) {
 
     this._initBody = function(body) {
       this._bodyInit = body
-      if (typeof body === 'string') {
+      if (!body) {
+        this._bodyText = ''
+      } else if (typeof body === 'string') {
         this._bodyText = body
       } else if (support.blob && Blob.prototype.isPrototypeOf(body)) {
         this._bodyBlob = body
@@ -8991,11 +9154,12 @@ module.exports = function (str) {
         this._bodyFormData = body
       } else if (support.searchParams && URLSearchParams.prototype.isPrototypeOf(body)) {
         this._bodyText = body.toString()
-      } else if (!body) {
-        this._bodyText = ''
-      } else if (support.arrayBuffer && ArrayBuffer.prototype.isPrototypeOf(body)) {
-        // Only support ArrayBuffers for POST method.
-        // Receiving ArrayBuffers happens via Blobs, instead.
+      } else if (support.arrayBuffer && support.blob && isDataView(body)) {
+        this._bodyArrayBuffer = bufferClone(body.buffer)
+        // IE 10-11 can't handle a DataView body.
+        this._bodyInit = new Blob([this._bodyArrayBuffer])
+      } else if (support.arrayBuffer && (ArrayBuffer.prototype.isPrototypeOf(body) || isArrayBufferView(body))) {
+        this._bodyArrayBuffer = bufferClone(body)
       } else {
         throw new Error('unsupported BodyInit type')
       }
@@ -9020,6 +9184,8 @@ module.exports = function (str) {
 
         if (this._bodyBlob) {
           return Promise.resolve(this._bodyBlob)
+        } else if (this._bodyArrayBuffer) {
+          return Promise.resolve(new Blob([this._bodyArrayBuffer]))
         } else if (this._bodyFormData) {
           throw new Error('could not read FormData body as blob')
         } else {
@@ -9028,27 +9194,28 @@ module.exports = function (str) {
       }
 
       this.arrayBuffer = function() {
-        return this.blob().then(readBlobAsArrayBuffer)
-      }
-
-      this.text = function() {
-        var rejected = consumed(this)
-        if (rejected) {
-          return rejected
-        }
-
-        if (this._bodyBlob) {
-          return readBlobAsText(this._bodyBlob)
-        } else if (this._bodyFormData) {
-          throw new Error('could not read FormData body as text')
+        if (this._bodyArrayBuffer) {
+          return consumed(this) || Promise.resolve(this._bodyArrayBuffer)
         } else {
-          return Promise.resolve(this._bodyText)
+          return this.blob().then(readBlobAsArrayBuffer)
         }
       }
-    } else {
-      this.text = function() {
-        var rejected = consumed(this)
-        return rejected ? rejected : Promise.resolve(this._bodyText)
+    }
+
+    this.text = function() {
+      var rejected = consumed(this)
+      if (rejected) {
+        return rejected
+      }
+
+      if (this._bodyBlob) {
+        return readBlobAsText(this._bodyBlob)
+      } else if (this._bodyArrayBuffer) {
+        return Promise.resolve(readArrayBufferAsText(this._bodyArrayBuffer))
+      } else if (this._bodyFormData) {
+        throw new Error('could not read FormData body as text')
+      } else {
+        return Promise.resolve(this._bodyText)
       }
     }
 
@@ -9076,7 +9243,10 @@ module.exports = function (str) {
   function Request(input, options) {
     options = options || {}
     var body = options.body
-    if (Request.prototype.isPrototypeOf(input)) {
+
+    if (typeof input === 'string') {
+      this.url = input
+    } else {
       if (input.bodyUsed) {
         throw new TypeError('Already read')
       }
@@ -9087,12 +9257,10 @@ module.exports = function (str) {
       }
       this.method = input.method
       this.mode = input.mode
-      if (!body) {
+      if (!body && input._bodyInit != null) {
         body = input._bodyInit
         input.bodyUsed = true
       }
-    } else {
-      this.url = input
     }
 
     this.credentials = options.credentials || this.credentials || 'omit'
@@ -9110,7 +9278,7 @@ module.exports = function (str) {
   }
 
   Request.prototype.clone = function() {
-    return new Request(this)
+    return new Request(this, { body: this._bodyInit })
   }
 
   function decode(body) {
@@ -9126,16 +9294,17 @@ module.exports = function (str) {
     return form
   }
 
-  function headers(xhr) {
-    var head = new Headers()
-    var pairs = (xhr.getAllResponseHeaders() || '').trim().split('\n')
-    pairs.forEach(function(header) {
-      var split = header.trim().split(':')
-      var key = split.shift().trim()
-      var value = split.join(':').trim()
-      head.append(key, value)
+  function parseHeaders(rawHeaders) {
+    var headers = new Headers()
+    rawHeaders.split('\r\n').forEach(function(line) {
+      var parts = line.split(':')
+      var key = parts.shift().trim()
+      if (key) {
+        var value = parts.join(':').trim()
+        headers.append(key, value)
+      }
     })
-    return head
+    return headers
   }
 
   Body.call(Request.prototype)
@@ -9146,10 +9315,10 @@ module.exports = function (str) {
     }
 
     this.type = 'default'
-    this.status = options.status
+    this.status = 'status' in options ? options.status : 200
     this.ok = this.status >= 200 && this.status < 300
-    this.statusText = options.statusText
-    this.headers = options.headers instanceof Headers ? options.headers : new Headers(options.headers)
+    this.statusText = 'statusText' in options ? options.statusText : 'OK'
+    this.headers = new Headers(options.headers)
     this.url = options.url || ''
     this._initBody(bodyInit)
   }
@@ -9187,35 +9356,16 @@ module.exports = function (str) {
 
   self.fetch = function(input, init) {
     return new Promise(function(resolve, reject) {
-      var request
-      if (Request.prototype.isPrototypeOf(input) && !init) {
-        request = input
-      } else {
-        request = new Request(input, init)
-      }
-
+      var request = new Request(input, init)
       var xhr = new XMLHttpRequest()
-
-      function responseURL() {
-        if ('responseURL' in xhr) {
-          return xhr.responseURL
-        }
-
-        // Avoid security warnings on getResponseHeader when not allowed by CORS
-        if (/^X-Request-URL:/m.test(xhr.getAllResponseHeaders())) {
-          return xhr.getResponseHeader('X-Request-URL')
-        }
-
-        return
-      }
 
       xhr.onload = function() {
         var options = {
           status: xhr.status,
           statusText: xhr.statusText,
-          headers: headers(xhr),
-          url: responseURL()
+          headers: parseHeaders(xhr.getAllResponseHeaders() || '')
         }
+        options.url = 'responseURL' in xhr ? xhr.responseURL : options.headers.get('X-Request-URL')
         var body = 'response' in xhr ? xhr.response : xhr.responseText
         resolve(new Response(body, options))
       }

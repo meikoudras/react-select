@@ -83,7 +83,7 @@ const Creatable = React.createClass({
 			? this.select.getInputValue()
 			: '';
 
-		if (isValidNewOption({ label: inputValue })) {
+		if (isValidNewOption({ label: inputValue }) && this.select) {
 			const { newOptionCreator } = this.props;
 			const { labelKey, options, valueKey } = this.select.props;
 
