@@ -26,6 +26,8 @@ const Creatable = React.createClass({
     // ({ label: string, labelKey: string, valueKey: string }): Object
 		newOptionCreator: React.PropTypes.func,
 
+    onInputChange: React.PropTypes.func,
+
     // Creates prompt/placeholder option text.
     // (filterText: string): string
 		promptTextCreator: React.PropTypes.func,
@@ -153,6 +155,19 @@ const Creatable = React.createClass({
     }
 	},
 
+  onInputChange (input) {
+    const { onInputChange } = this.props;
+
+    if (onInputChange) {
+      input = onInputChange(input);
+    }
+
+    // This value may be needed in between Select mounts (when this.select is null)
+    this.inputValue = input;
+
+    return input;
+  },
+
 	onOptionSelect (option, event) {
 		if (option === this._createPlaceholderOption) {
 			this.createNewOption();
@@ -171,6 +186,7 @@ const Creatable = React.createClass({
 				filterOptions={this.filterOptions}
 				menuRenderer={this.menuRenderer}
 				onInputKeyDown={this.onInputKeyDown}
+				onInputChange={this.onInputChange}
 				ref={(ref) => this.select = ref}
 			/>
 		);
