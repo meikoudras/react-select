@@ -357,7 +357,9 @@ var Creatable = _react2['default'].createClass({
 	},
 
 	onInputKeyDown: function onInputKeyDown(event) {
-		var shouldKeyDownEventCreateNewOption = this.props.shouldKeyDownEventCreateNewOption;
+		var _props3 = this.props;
+		var shouldKeyDownEventCreateNewOption = _props3.shouldKeyDownEventCreateNewOption;
+		var onInputKeyDown = _props3.onInputKeyDown;
 
 		var focusedOption = this.select.getFocusedOption();
 
@@ -366,6 +368,8 @@ var Creatable = _react2['default'].createClass({
 
 			// Prevent decorated Select from doing anything additional with this keyDown event
 			event.preventDefault();
+		} else if (onInputKeyDown) {
+			onInputKeyDown(event);
 		}
 	},
 
@@ -380,11 +384,11 @@ var Creatable = _react2['default'].createClass({
 	render: function render() {
 		var _this = this;
 
-		var _props3 = this.props;
-		var newOptionCreator = _props3.newOptionCreator;
-		var shouldKeyDownEventCreateNewOption = _props3.shouldKeyDownEventCreateNewOption;
+		var _props4 = this.props;
+		var newOptionCreator = _props4.newOptionCreator;
+		var shouldKeyDownEventCreateNewOption = _props4.shouldKeyDownEventCreateNewOption;
 
-		var restProps = _objectWithoutProperties(_props3, ['newOptionCreator', 'shouldKeyDownEventCreateNewOption']);
+		var restProps = _objectWithoutProperties(_props4, ['newOptionCreator', 'shouldKeyDownEventCreateNewOption']);
 
 		return _react2['default'].createElement(_Select2['default'], _extends({}, restProps, {
 			allowCreate: true,
